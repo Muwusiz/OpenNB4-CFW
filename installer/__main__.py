@@ -1,6 +1,7 @@
 import argparse
 import hashlib
 import os
+import struct
 import sys
 
 from .device import APP_BASE, Device, DeviceError
@@ -49,6 +50,12 @@ def cmd_install(args):
     with Device() as device:
         device.erase_app()
         device.program(image)
+        expected = struct.unpack_from("<H", image, len(image) - 2)[0]
+        got = device.verify_image() & 0xFFFF
+        print("verify    0x%04X expected 0x%04X" % (got, expected))
+        if got != expected:
+            print("verification failed, device left in update mode")
+            return 1
         device.reset()
     print("installed")
     return 0
@@ -64,6 +71,12 @@ def cmd_uninstall(args):
     with Device() as device:
         device.erase_app()
         device.program(image)
+        expected = struct.unpack_from("<H", image, len(image) - 2)[0]
+        got = device.verify_image() & 0xFFFF
+        print("verify    0x%04X expected 0x%04X" % (got, expected))
+        if got != expected:
+            print("verification failed, device left in update mode")
+            return 1
         device.reset()
     print("restored")
     return 0

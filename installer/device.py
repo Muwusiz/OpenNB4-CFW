@@ -52,7 +52,7 @@ class Device:
         self.sequence = (self.sequence + 1) & 0xFFFFFFFF
         return self.sequence
 
-    def transfer(self, opcode, address=0, length=0, mode=0, data=b""):
+    def transfer(self, opcode, address=0, length=0, mode=0, data=b"", timeout=3000):
         if len(data) > REPORT - PAYLOAD:
             raise DeviceError("payload too long")
         for _ in range(3):
@@ -67,7 +67,7 @@ class Device:
             self.handle.write(b"\x00" + bytes(frame))
             time.sleep(0.002)
             try:
-                reply = bytes(self.handle.read(REPORT + 1, 3000))
+                reply = bytes(self.handle.read(REPORT + 1, timeout))
             except OSError as error:
                 raise DeviceError(str(error))
             if len(reply) >= PAYLOAD and struct.unpack_from("<I", reply, 0)[0] == sequence:
@@ -116,14 +116,16 @@ class Device:
         return self.transfer(OP_VERIFY, address, length)[PAYLOAD]
 
     def erase_app(self):
-        self.send(OP_ERASE, 0, ERASE_ALL)
-        time.sleep(0.5)
+        self.transfer(OP_ERASE, ERASE_ALL, 0, timeout=30000)
 
     def program(self, image):
         for offset in range(0, len(image), CHUNK):
             block = image[offset:offset + CHUNK]
-            self.send(OP_WRITE, offset, len(block), 1, block)
-            time.sleep(0.0005)
+            self.transfer(OP_WRITE, offset, len(block), 1, block)
+
+    def verify_image(self):
+        reply = self.transfer(OP_VERIFY)
+        return struct.unpack_from("<I", reply, 0x10)[0]
 
     def reset(self):
         self.send(OP_RESET)
