@@ -66,7 +66,10 @@ class Device:
             frame[PAYLOAD:PAYLOAD + len(data)] = data
             self.handle.write(b"\x00" + bytes(frame))
             time.sleep(0.002)
-            reply = bytes(self.handle.read(REPORT + 1, 3000))
+            try:
+                reply = bytes(self.handle.read(REPORT + 1, 3000))
+            except OSError as error:
+                raise DeviceError(str(error))
             if len(reply) >= PAYLOAD and struct.unpack_from("<I", reply, 0)[0] == sequence:
                 return reply
         raise DeviceError("device did not answer")
