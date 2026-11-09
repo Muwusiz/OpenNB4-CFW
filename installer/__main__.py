@@ -36,6 +36,21 @@ def cmd_backup(args):
     return 0
 
 
+def cmd_install(args):
+    image = open(args.image, "rb").read()
+    print("image     %d bytes" % len(image))
+    print("sha256    %s" % hashlib.sha256(image).hexdigest())
+    if not args.yes:
+        print("refusing without --yes")
+        return 1
+    with Device() as device:
+        device.erase_app()
+        device.program(image)
+        device.reset()
+    print("installed")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="installer")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -47,6 +62,11 @@ def main(argv=None):
     backup.add_argument("--out", required=True)
     backup.add_argument("--length", type=lambda s: int(s, 0), default=DEFAULT_BACKUP)
     backup.set_defaults(func=cmd_backup)
+
+    install = sub.add_parser("install")
+    install.add_argument("--image", required=True)
+    install.add_argument("--yes", action="store_true")
+    install.set_defaults(func=cmd_install)
 
     args = parser.parse_args(argv)
     try:

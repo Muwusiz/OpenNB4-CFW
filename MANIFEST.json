@@ -7,5 +7,25 @@
     "code_len": 742066,
     "data_len": 4340416
   },
-  "builds": []
+  "builds": [
+    {
+      "id": "3.0.1-dev.1",
+      "channel": "dev",
+      "version": 50397185,
+      "spec": "null",
+      "image_sha256": "c0991cfb37203f38157585a6026fff87f1b5d369a753b3cdafb02789b2b6d29c",
+      "image_len": 742066,
+      "changed_bytes": 3,
+      "changed_ranges": [
+        [
+          3980,
+          3981
+        ],
+        [
+          3982,
+          3984
+        ]
+      ]
+    }
+  ]
 }

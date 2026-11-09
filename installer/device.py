@@ -20,6 +20,7 @@ OP_VERIFY = 8
 
 APP_BASE = 0x08008000
 CHUNK = 0x100
+ERASE_ALL = 0xF0000
 INFO_LEN = 0x30
 VERSION_OFFSET = 0x28
 
@@ -70,6 +71,19 @@ class Device:
                 return reply
         raise DeviceError("device did not answer")
 
+    def send(self, opcode, address=0, length=0, mode=0, data=b""):
+        if len(data) > REPORT - PAYLOAD:
+            raise DeviceError("payload too long")
+        sequence = self._next()
+        frame = bytearray(REPORT)
+        struct.pack_into("<I", frame, 0, sequence)
+        struct.pack_into("<I", frame, 4, opcode)
+        struct.pack_into("<I", frame, 8, address)
+        struct.pack_into("<I", frame, 12, length)
+        struct.pack_into("<I", frame, 16, mode)
+        frame[PAYLOAD:PAYLOAD + len(data)] = data
+        self.handle.write(b"\x00" + bytes(frame))
+
     def info(self):
         return self.transfer(OP_QUERY)[PAYLOAD:PAYLOAD + INFO_LEN]
 
@@ -97,3 +111,16 @@ class Device:
 
     def verify(self, address, length):
         return self.transfer(OP_VERIFY, address, length)[PAYLOAD]
+
+    def erase_app(self):
+        self.send(OP_ERASE, 0, ERASE_ALL)
+        time.sleep(0.5)
+
+    def program(self, image):
+        for offset in range(0, len(image), CHUNK):
+            block = image[offset:offset + CHUNK]
+            self.send(OP_WRITE, offset, len(block), 1, block)
+            time.sleep(0.0005)
+
+    def reset(self):
+        self.send(OP_RESET)
