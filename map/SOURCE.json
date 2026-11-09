@@ -12,7 +12,7 @@
     },
     "overlay": {
       "file": "tools/mapgen/symbols.yaml",
-      "sha256": "9ed45ae31d20fb953259fd9e8900584b125420ec3282520ae58f7e34d3af7a06"
+      "sha256": "8a348378af6aa941338ea660e56636a3b79eff2f27ddd0886ef9454c6fad3391"
     }
   },
   "outputs": {
@@ -21,6 +21,6 @@
   },
   "counts": {
     "functions": 1989,
-    "symbols": 49
+    "symbols": 50
   }
 }

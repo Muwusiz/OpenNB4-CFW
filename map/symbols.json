@@ -46,6 +46,13 @@
     "subsystem": "board/io",
     "summary": "DMA stream configuration helper"
   },
+  "ENTER_UPDATE_MODE": {
+    "addr": 134322868,
+    "kind": "function",
+    "size": 74,
+    "subsystem": "update/recovery",
+    "summary": "USB teardown, mailbox magic, system reset; the menu's Firmware Update entry"
+  },
   "IRQ0_VECTOR": {
     "addr": 134250560,
     "kind": "flash",
