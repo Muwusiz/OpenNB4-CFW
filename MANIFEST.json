@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "base": {
+    "version": "2.0.116",
+    "code_sha256": "60129d8020ade66b5965a74fd0206c5847d819c28a58ae85f8d01bd072c72b2b",
+    "data_sha256": "37780d8512809d8fc3ec43764b1672d28f2758e6f9ca26a850bf8888b848a665",
+    "code_len": 742066,
+    "data_len": 4340416
+  },
+  "builds": []
+}
