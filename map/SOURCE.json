@@ -16,7 +16,8 @@
     }
   },
   "outputs": {
-    "module": "map/onb4_20116.py"
+    "module": "map/onb4_20116.py",
+    "symbols": "map/symbols.json"
   },
   "counts": {
     "functions": 1989,
