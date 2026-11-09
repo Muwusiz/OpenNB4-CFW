@@ -1,10 +1,13 @@
 import argparse
 import hashlib
+import os
 import sys
 
 from .device import APP_BASE, Device, DeviceError
 
 DEFAULT_BACKUP = 0x180000
+BASE_IMAGE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                          "firmware", "base", "2.0.116", "code.bin")
 
 
 def format_version(patch, major):
@@ -51,6 +54,21 @@ def cmd_install(args):
     return 0
 
 
+def cmd_uninstall(args):
+    image = open(BASE_IMAGE, "rb").read()
+    print("image     %d bytes (vendor 2.0.116)" % len(image))
+    print("sha256    %s" % hashlib.sha256(image).hexdigest())
+    if not args.yes:
+        print("refusing without --yes")
+        return 1
+    with Device() as device:
+        device.erase_app()
+        device.program(image)
+        device.reset()
+    print("restored")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="installer")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -67,6 +85,10 @@ def main(argv=None):
     install.add_argument("--image", required=True)
     install.add_argument("--yes", action="store_true")
     install.set_defaults(func=cmd_install)
+
+    uninstall = sub.add_parser("uninstall")
+    uninstall.add_argument("--yes", action="store_true")
+    uninstall.set_defaults(func=cmd_uninstall)
 
     args = parser.parse_args(argv)
     try:
