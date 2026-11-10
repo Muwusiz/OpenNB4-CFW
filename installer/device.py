@@ -8,6 +8,8 @@ PID = 0x8D00
 USAGE_PAGE = 0xFF00
 REPORT = 280
 PAYLOAD = 24
+DRAIN_TIMEOUT = 20
+DRAIN_LIMIT = 20000
 
 OP_QUERY = 1
 OP_READ = 2
@@ -38,6 +40,15 @@ class Device:
         self.handle.open_path(entries[0]["path"])
         time.sleep(0.2)
         self.sequence = 0
+        self._drain()
+
+    def _drain(self):
+        for _ in range(DRAIN_LIMIT):
+            try:
+                if not self.handle.read(REPORT + 1, DRAIN_TIMEOUT):
+                    return
+            except OSError:
+                return
 
     def close(self):
         self.handle.close()
@@ -63,6 +74,7 @@ class Device:
         self.handle = hid.device()
         self.handle.open_path(entries[0]["path"])
         time.sleep(0.2)
+        self._drain()
 
     def transfer(self, opcode, address=0, length=0, mode=0, a4=0, data=b"", timeout=3000):
         if len(data) > REPORT - PAYLOAD:
