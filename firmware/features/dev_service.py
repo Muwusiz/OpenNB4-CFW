@@ -10,6 +10,9 @@ REQUIRES = []
 TOUCHED = [(0xB5400, 0xB5500)]
 
 ADDRESS = 0x080BD400
+CTRL = 0x10000000
+DATA = 0x10000100
+CHUNK = 0xF000
 
 ASM = """
     .syntax unified
@@ -18,7 +21,7 @@ ASM = """
     push {r0, r1, r2, r3, r4, r5, r6, r7, r12, lr}
 
     movw r4, #0x0000
-    movt r4, #0xC07A
+    movt r4, #0x1000
     ldr  r5, [r4]
     cmp  r5, #0
     beq  svc_exit
@@ -47,14 +50,16 @@ snap_idle:
     ldr  r2, [r2]
     cmp  r2, #0
     beq  svc_done
-    movw r3, #0x1000
-    movt r3, #0xC07A
-    movw r0, #0xB000
-    movt r0, #0x0004
+    ldr  r6, [r4, #0x20]
+    add  r2, r2, r6
+    movw r3, #0x0100
+    movt r3, #0x1000
+    movw r0, #0xF000
+    lsrs r0, r0, #2
 snap_copy:
     ldr  r1, [r2], #4
     str  r1, [r3], #4
-    subs r0, r0, #4
+    subs r0, r0, #1
     bne  snap_copy
     b    svc_done
 
