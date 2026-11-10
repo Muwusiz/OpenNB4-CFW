@@ -40,6 +40,27 @@ def cmd_backup(args):
     return 0
 
 
+def write_image(image, label, done):
+    try:
+        with Device() as device:
+            device.erase_app()
+            device.program(image)
+            expected = struct.unpack_from("<H", image, len(image) - 2)[0]
+            got = device.verify_image() & 0xFFFF
+            print("verify    0x%04X expected 0x%04X" % (got, expected))
+            if got != expected:
+                print("verification failed, device left in update mode")
+                return 1
+            device.reset()
+    except DeviceError as error:
+        print("%s failed: %s" % (label, error), file=sys.stderr)
+        print("the device is in update mode with a partial image; run %s again" % label,
+              file=sys.stderr)
+        return 1
+    print(done)
+    return 0
+
+
 def cmd_install(args):
     image = open(args.image, "rb").read()
     print("image     %d bytes" % len(image))
@@ -47,18 +68,7 @@ def cmd_install(args):
     if not args.yes:
         print("refusing without --yes")
         return 1
-    with Device() as device:
-        device.erase_app()
-        device.program(image)
-        expected = struct.unpack_from("<H", image, len(image) - 2)[0]
-        got = device.verify_image() & 0xFFFF
-        print("verify    0x%04X expected 0x%04X" % (got, expected))
-        if got != expected:
-            print("verification failed, device left in update mode")
-            return 1
-        device.reset()
-    print("installed")
-    return 0
+    return write_image(image, "install", "installed")
 
 
 def cmd_uninstall(args):
@@ -68,18 +78,7 @@ def cmd_uninstall(args):
     if not args.yes:
         print("refusing without --yes")
         return 1
-    with Device() as device:
-        device.erase_app()
-        device.program(image)
-        expected = struct.unpack_from("<H", image, len(image) - 2)[0]
-        got = device.verify_image() & 0xFFFF
-        print("verify    0x%04X expected 0x%04X" % (got, expected))
-        if got != expected:
-            print("verification failed, device left in update mode")
-            return 1
-        device.reset()
-    print("restored")
-    return 0
+    return write_image(image, "uninstall", "restored")
 
 
 def cmd_models_backup(args):
