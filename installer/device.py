@@ -189,5 +189,18 @@ class Device:
         info = self.model_directory()
         directory = self.model_read(1, info["directory"])
         models = [self.model_read(slot + 2, info["record"]) for slot in range(info["count"])]
+        names = [self.model_name(slot) for slot in range(info["count"])]
         self.model_session(1)
-        return info, directory, models
+        return info, directory, models, names
+
+    def model_restore(self, info, directory, models, names):
+        self.model_handshake()
+        self.model_session(4)
+        self.model_cmd(0x64, 1, info["total"], info["directory"], info["record"])
+        self.model_write(1, directory)
+        for slot, record in enumerate(models):
+            self.model_write(slot + 2, record)
+        for slot, name in enumerate(names):
+            self.model_cmd(0x6A, 1, slot, 0x14, 0, name)
+        self.model_commit()
+        self.model_session(1)

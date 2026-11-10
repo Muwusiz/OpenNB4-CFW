@@ -84,15 +84,34 @@ def cmd_uninstall(args):
 
 def cmd_models_backup(args):
     with Device() as device:
-        info, directory, models = device.model_backup()
+        info, directory, models, names = device.model_backup()
     blob = struct.pack("<IIII", info["total"], info["directory"], info["count"], info["record"])
-    blob += directory + b"".join(models)
+    blob += directory + b"".join(models) + b"".join(names)
     open(args.out, "wb").write(blob)
     print("models    %d" % info["count"])
     print("directory %d bytes" % info["directory"])
     print("record    %d bytes" % info["record"])
     print("payload   %d bytes (announced %d)" % (len(blob) - 16, info["total"]))
     print("wrote     %s" % args.out)
+    return 0
+
+
+def cmd_models_restore(args):
+    blob = open(args.file, "rb").read()
+    total, directory_len, count, record = struct.unpack_from("<IIII", blob, 0)
+    offset = 16
+    directory = blob[offset:offset + directory_len]
+    offset += directory_len
+    models = [blob[offset + i * record:offset + (i + 1) * record] for i in range(count)]
+    offset += count * record
+    names = [blob[offset + i * 0x14:offset + (i + 1) * 0x14] for i in range(count)]
+    info = {"total": total, "directory": directory_len, "count": count, "record": record}
+    if not args.yes:
+        print("refusing without --yes")
+        return 1
+    with Device() as device:
+        device.model_restore(info, directory, models, names)
+    print("restored %d models" % count)
     return 0
 
 
@@ -120,6 +139,11 @@ def main(argv=None):
     models = sub.add_parser("models-backup")
     models.add_argument("--out", required=True)
     models.set_defaults(func=cmd_models_backup)
+
+    restore = sub.add_parser("models-restore")
+    restore.add_argument("--file", required=True)
+    restore.add_argument("--yes", action="store_true")
+    restore.set_defaults(func=cmd_models_restore)
 
     args = parser.parse_args(argv)
     try:
