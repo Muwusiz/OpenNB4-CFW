@@ -82,6 +82,20 @@ def cmd_uninstall(args):
     return 0
 
 
+def cmd_models_backup(args):
+    with Device() as device:
+        info, directory, models = device.model_backup()
+    blob = struct.pack("<IIII", info["total"], info["directory"], info["count"], info["record"])
+    blob += directory + b"".join(models)
+    open(args.out, "wb").write(blob)
+    print("models    %d" % info["count"])
+    print("directory %d bytes" % info["directory"])
+    print("record    %d bytes" % info["record"])
+    print("payload   %d bytes (announced %d)" % (len(blob) - 16, info["total"]))
+    print("wrote     %s" % args.out)
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="installer")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -102,6 +116,10 @@ def main(argv=None):
     uninstall = sub.add_parser("uninstall")
     uninstall.add_argument("--yes", action="store_true")
     uninstall.set_defaults(func=cmd_uninstall)
+
+    models = sub.add_parser("models-backup")
+    models.add_argument("--out", required=True)
+    models.set_defaults(func=cmd_models_backup)
 
     args = parser.parse_args(argv)
     try:

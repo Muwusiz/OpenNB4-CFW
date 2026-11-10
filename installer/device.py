@@ -64,7 +64,7 @@ class Device:
         self.handle.open_path(entries[0]["path"])
         time.sleep(0.2)
 
-    def transfer(self, opcode, address=0, length=0, mode=0, data=b"", timeout=3000):
+    def transfer(self, opcode, address=0, length=0, mode=0, a4=0, data=b"", timeout=3000):
         if len(data) > REPORT - PAYLOAD:
             raise DeviceError("payload too long")
         for _ in range(3):
@@ -75,6 +75,7 @@ class Device:
             struct.pack_into("<I", frame, 8, address)
             struct.pack_into("<I", frame, 12, length)
             struct.pack_into("<I", frame, 16, mode)
+            struct.pack_into("<I", frame, 20, a4)
             frame[PAYLOAD:PAYLOAD + len(data)] = data
             self.handle.write(b"\x00" + bytes(frame))
             time.sleep(0.002)
@@ -142,3 +143,51 @@ class Device:
 
     def reset(self):
         self.send(OP_RESET)
+
+    def model_cmd(self, cmd, a1=0, a2=0, a3=0, a4=0, data=b""):
+        return self.transfer(cmd, a1, a2, a3, a4, data)
+
+    def model_handshake(self):
+        self.model_cmd(0x6D)
+
+    def model_session(self, mode):
+        self.model_cmd(0x6C, 0, mode)
+
+    def model_directory(self):
+        data = self.model_cmd(0x64)[PAYLOAD:]
+        return {
+            "total": struct.unpack_from("<I", data, 4)[0],
+            "directory": struct.unpack_from("<I", data, 8)[0],
+            "count": struct.unpack_from("<I", data, 12)[0],
+            "record": struct.unpack_from("<I", data, 16)[0],
+        }
+
+    def model_read(self, slot, length):
+        out = bytearray()
+        offset = 0
+        while offset < length:
+            n = min(0x100, length - offset)
+            reply = self.model_cmd(0x69, 0, slot, offset, n)
+            out += reply[PAYLOAD:PAYLOAD + n]
+            offset += n
+        return bytes(out)
+
+    def model_write(self, slot, data):
+        for offset in range(0, len(data), 0x100):
+            block = data[offset:offset + 0x100]
+            self.model_cmd(0x69, 1, slot, offset, len(block), block)
+
+    def model_name(self, slot):
+        return self.model_cmd(0x6A, 0, slot)[PAYLOAD:PAYLOAD + 0x14]
+
+    def model_commit(self):
+        self.model_cmd(0x6B)
+
+    def model_backup(self):
+        self.model_handshake()
+        self.model_session(3)
+        info = self.model_directory()
+        directory = self.model_read(1, info["directory"])
+        models = [self.model_read(slot + 2, info["record"]) for slot in range(info["count"])]
+        self.model_session(1)
+        return info, directory, models
