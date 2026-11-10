@@ -1,3 +1,3 @@
 NAME = "dev"
 CHANNEL = "dev"
-FEATURES = ["dev-service"]
+FEATURES = ["dev-service", "onb4-menu"]
