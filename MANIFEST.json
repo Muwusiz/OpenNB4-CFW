@@ -9,6 +9,53 @@
   },
   "builds": [
     {
+      "id": "3.0.1-dev.1",
+      "channel": "dev",
+      "version": 50397185,
+      "profile": "dev",
+      "features": [
+        "dev-service@1"
+      ],
+      "base_sha256": "60129d8020ade66b5965a74fd0206c5847d819c28a58ae85f8d01bd072c72b2b",
+      "image_sha256": "78d58fcbaba006ddd8b477da8c78fb9242f8f1dcda7659bd7a3df83393d41d32",
+      "image_len": 749586,
+      "changed_bytes": 152,
+      "changed_ranges": [
+        [
+          3976,
+          3978
+        ],
+        [
+          3980,
+          3981
+        ],
+        [
+          3982,
+          3984
+        ],
+        [
+          742400,
+          742402
+        ],
+        [
+          742403,
+          742442
+        ],
+        [
+          742443,
+          742532
+        ],
+        [
+          742533,
+          742536
+        ],
+        [
+          749568,
+          749582
+        ]
+      ]
+    },
+    {
       "id": "3.0.1",
       "channel": "stable",
       "version": 50331649,
@@ -29,35 +76,6 @@
         ],
         [
           3983,
-          3984
-        ],
-        [
-          749568,
-          749582
-        ]
-      ]
-    },
-    {
-      "id": "3.0.1-dev.1",
-      "channel": "dev",
-      "version": 50397185,
-      "profile": "dev",
-      "features": [],
-      "base_sha256": "60129d8020ade66b5965a74fd0206c5847d819c28a58ae85f8d01bd072c72b2b",
-      "image_sha256": "2d3d1baea8e16b7744daa5a3a7008e40beccda6c95898694afce5af797840a49",
-      "image_len": 749586,
-      "changed_bytes": 19,
-      "changed_ranges": [
-        [
-          3976,
-          3978
-        ],
-        [
-          3980,
-          3981
-        ],
-        [
-          3982,
           3984
         ],
         [

@@ -2,15 +2,14 @@ import struct
 
 import keystone
 
-ID = "service"
+ID = "dev-service"
 VERSION = 1
 BIT = 0
 CHANNEL = "dev"
 REQUIRES = []
-TOUCHED = [(0x40, 0x44), (0xB5400, 0xB5500)]
+TOUCHED = [(0xB5400, 0xB5500)]
 
 ADDRESS = 0x080BD400
-VECTOR = 0x40
 
 ASM = """
     .syntax unified
@@ -86,6 +85,5 @@ def apply(ctx):
     ks = keystone.Ks(keystone.KS_ARCH_ARM, keystone.KS_MODE_THUMB)
     encoded, _ = ks.asm(ASM, addr=ADDRESS)
     if encoded is None:
-        raise RuntimeError("service handler did not assemble")
+        raise RuntimeError("dev-service handler did not assemble")
     ctx.place(ADDRESS, bytes(encoded))
-    struct.pack_into("<I", ctx.body, VECTOR, ADDRESS | 1)

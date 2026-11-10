@@ -1,3 +1,3 @@
 NAME = "dev"
 CHANNEL = "dev"
-FEATURES = []
+FEATURES = ["dev-service"]

@@ -11,6 +11,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "firmware"))
 
 from map import onb4_20116 as M
+import core
 
 MAGIC1 = 0xC87251CC
 MAGIC2 = 0x92017EA0
@@ -23,10 +24,8 @@ HEADER = (OFF_MAGIC1, OFF_VERSION_MAJOR + 4)
 MAX_BODY = 0x000F7FFE
 IMAGE_BASE = 0x08008000
 
-CFW_INFO_ADDR = 0x080BF000
-CFW_INFO_MAGIC = 0x34424E4F
-CFW_INFO_LEN = 16
-CFW_INFO_OFFSET = CFW_INFO_ADDR - IMAGE_BASE
+CFW_INFO_OFFSET = core.CFW_INFO_ADDR - IMAGE_BASE
+CFW_INFO_LEN = core.CFW_INFO_LEN
 
 BASE_DIR = os.path.join(ROOT, "firmware", "base", "2.0.116")
 BASE_CODE = os.path.join(BASE_DIR, "code.bin")
@@ -35,9 +34,10 @@ MANIFEST = os.path.join(ROOT, "MANIFEST.json")
 
 
 class Context:
-    def __init__(self, body, version):
+    def __init__(self, body, version, features):
         self.body = body
         self.version = version
+        self.features = features
 
     def place(self, address, data):
         offset = address - IMAGE_BASE
@@ -133,7 +133,7 @@ def gate(img, base_body, features, version):
 
 
 def load(name, package):
-    return importlib.import_module(package + "." + name)
+    return importlib.import_module(package + "." + name.replace("-", "_"))
 
 
 def resolve(ids):
@@ -172,20 +172,12 @@ def build(profile_name, release, dev, update_manifest=False, dry_run=False):
 
     base_body = base[:-2]
     body = bytearray(base_body)
-    ctx = Context(body, version)
+    ctx = Context(body, version, features)
 
     for feature in features:
         feature.apply(ctx)
 
-    struct.pack_into("<I", body, OFF_VERSION, version)
-
-    bitmap = 0
-    for feature in features:
-        bitmap |= 1 << feature.BIT
-
-    info = struct.pack("<III", CFW_INFO_MAGIC, version, bitmap)
-    info += struct.pack("<HH", crc16(info), 0xFFFF)
-    ctx.place(CFW_INFO_ADDR, info)
+    core.apply(ctx)
 
     img = seal(body)
     errors = gate(img, base_body, features, version)

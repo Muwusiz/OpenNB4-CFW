@@ -52,6 +52,18 @@ class Device:
         self.sequence = (self.sequence + 1) & 0xFFFFFFFF
         return self.sequence
 
+    def reopen(self):
+        try:
+            self.handle.close()
+        except Exception:
+            pass
+        entries = [e for e in hid.enumerate(VID, PID) if e["usage_page"] == USAGE_PAGE]
+        if not entries:
+            raise DeviceError("no NB4 found on USB")
+        self.handle = hid.device()
+        self.handle.open_path(entries[0]["path"])
+        time.sleep(0.2)
+
     def transfer(self, opcode, address=0, length=0, mode=0, data=b"", timeout=3000):
         if len(data) > REPORT - PAYLOAD:
             raise DeviceError("payload too long")
@@ -68,8 +80,9 @@ class Device:
             time.sleep(0.002)
             try:
                 reply = bytes(self.handle.read(REPORT + 1, timeout))
-            except OSError as error:
-                raise DeviceError(str(error))
+            except OSError:
+                self.reopen()
+                continue
             if len(reply) >= PAYLOAD and struct.unpack_from("<I", reply, 0)[0] == sequence:
                 return reply
         raise DeviceError("device did not answer")
