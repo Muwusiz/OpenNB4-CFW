@@ -31,6 +31,9 @@ CHUNK = 0x100
 ERASE_ALL = 0xF0000
 INFO_LEN = 0x30
 VERSION_OFFSET = 0x28
+CFW_INFO_ADDR = 0x080BF000
+CFW_INFO_MAGIC = 0x34424E4F
+CFW_INFO_LEN = 16
 
 
 class DeviceError(Exception):
@@ -130,6 +133,13 @@ class Device:
     def version(self):
         info = self.info()
         return struct.unpack_from("<II", info, VERSION_OFFSET)
+
+    def cfw_version(self):
+        data = self.read(CFW_INFO_ADDR - APP_BASE, CFW_INFO_LEN)
+        magic, version, bitmap = struct.unpack_from("<III", data, 0)
+        if magic != CFW_INFO_MAGIC:
+            return None
+        return version, bitmap
 
     def read(self, address, length):
         out = bytearray()

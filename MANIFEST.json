@@ -182,6 +182,45 @@
           749582
         ]
       ]
+    },
+    {
+      "id": "3.0.1-dev.4",
+      "channel": "dev",
+      "version": 50593793,
+      "profile": "dev",
+      "features": [
+        "dev-service@1"
+      ],
+      "base_sha256": "60129d8020ade66b5965a74fd0206c5847d819c28a58ae85f8d01bd072c72b2b",
+      "image_sha256": "db1664030e67e4cfb8c17382af4b2cad8d788c34c4b440ef7d0c08cd0425e0a8",
+      "image_len": 749586,
+      "changed_bytes": 149,
+      "changed_ranges": [
+        [
+          3976,
+          3978
+        ],
+        [
+          742400,
+          742402
+        ],
+        [
+          742403,
+          742442
+        ],
+        [
+          742443,
+          742532
+        ],
+        [
+          742533,
+          742536
+        ],
+        [
+          749568,
+          749582
+        ]
+      ]
     }
   ]
 }

@@ -24,7 +24,11 @@ def cmd_info(args):
     with Device() as device:
         patch, major = device.version()
         info = device.info()
+        cfw = device.cfw_version()
     print("version   %s" % format_version(patch, major))
+    if cfw:
+        print("cfw       %s" % format_version(cfw[0], 0))
+        print("features  0x%08X" % cfw[1])
     print("raw       patch 0x%08X  major 0x%08X" % (patch, major))
     print("info      %s" % info.hex())
     return 0

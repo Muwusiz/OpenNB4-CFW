@@ -3,7 +3,6 @@ import struct
 CFW_INFO_ADDR = 0x080BF000
 CFW_INFO_MAGIC = 0x34424E4F
 CFW_INFO_LEN = 16
-OFF_VERSION = 0xF8C
 
 
 def crc16(data):
@@ -16,8 +15,6 @@ def crc16(data):
 
 
 def apply(ctx):
-    struct.pack_into("<I", ctx.body, OFF_VERSION, ctx.version)
-
     bitmap = 0
     for feature in ctx.features:
         bitmap |= 1 << feature.BIT

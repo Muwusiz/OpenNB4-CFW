@@ -122,8 +122,6 @@ def gate(img, base_body, features, version):
         errors.append("length field does not match the body")
     if struct.unpack_from("<H", img, len(body))[0] != crc16(img[:len(body)]):
         errors.append("crc mismatch")
-    if struct.unpack_from("<I", img, OFF_VERSION)[0] != version:
-        errors.append("version field does not match the build")
     for lo, hi in diff_ranges(base_body, body):
         for offset in range(lo, hi):
             if not allowed(offset, features):
