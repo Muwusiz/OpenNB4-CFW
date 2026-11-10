@@ -8,6 +8,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "firmware"))
 
 from map import onb4_20116 as M
 
@@ -20,11 +21,30 @@ OFF_VERSION = 0xF8C
 OFF_VERSION_MAJOR = 0xF90
 HEADER = (OFF_MAGIC1, OFF_VERSION_MAJOR + 4)
 MAX_BODY = 0x000F7FFE
+IMAGE_BASE = 0x08008000
+
+CFW_INFO_ADDR = 0x080BF000
+CFW_INFO_MAGIC = 0x34424E4F
+CFW_INFO_LEN = 16
+CFW_INFO_OFFSET = CFW_INFO_ADDR - IMAGE_BASE
 
 BASE_DIR = os.path.join(ROOT, "firmware", "base", "2.0.116")
 BASE_CODE = os.path.join(BASE_DIR, "code.bin")
 DIST_DIR = os.path.join(ROOT, "dist")
 MANIFEST = os.path.join(ROOT, "MANIFEST.json")
+
+
+class Context:
+    def __init__(self, body, version):
+        self.body = body
+        self.version = version
+
+    def place(self, address, data):
+        offset = address - IMAGE_BASE
+        if offset < len(self.body):
+            raise SystemExit("placement 0x%08X overlaps the image" % address)
+        self.body.extend(b"\xFF" * (offset - len(self.body)))
+        self.body.extend(data)
 
 
 def sha256(data):
@@ -83,13 +103,15 @@ def diff_ranges(a, b):
     return out
 
 
-def allowed(offset, touched):
+def allowed(offset, features):
     if HEADER[0] <= offset < HEADER[1]:
         return True
-    return any(lo <= offset < hi for lo, hi in touched)
+    if CFW_INFO_OFFSET <= offset < CFW_INFO_OFFSET + CFW_INFO_LEN:
+        return True
+    return any(lo <= offset < hi for f in features for lo, hi in f.TOUCHED)
 
 
-def gate(img, base_body, spec):
+def gate(img, base_body, features, version):
     errors = []
     body = img[:-2]
     if struct.unpack_from("<I", img, OFF_MAGIC1)[0] != MAGIC1:
@@ -100,23 +122,49 @@ def gate(img, base_body, spec):
         errors.append("length field does not match the body")
     if struct.unpack_from("<H", img, len(body))[0] != crc16(img[:len(body)]):
         errors.append("crc mismatch")
-    if struct.unpack_from("<I", img, OFF_VERSION)[0] != spec.VERSION:
-        errors.append("version field does not match the spec")
+    if struct.unpack_from("<I", img, OFF_VERSION)[0] != version:
+        errors.append("version field does not match the build")
     for lo, hi in diff_ranges(base_body, body):
         for offset in range(lo, hi):
-            if not allowed(offset, spec.TOUCHED):
+            if not allowed(offset, features):
                 errors.append("unexpected change at 0x%X" % offset)
                 break
     return errors
 
 
-def load_spec(name):
-    return importlib.import_module("specs." + name)
+def load(name, package):
+    return importlib.import_module(package + "." + name)
 
 
-def build(name, dry_run=False, update_manifest=False):
-    sys.path.insert(0, os.path.join(ROOT, "firmware"))
-    spec = load_spec(name)
+def resolve(ids):
+    features = []
+    seen = set()
+
+    def add(fid):
+        if fid in seen:
+            return
+        seen.add(fid)
+        module = load(fid, "features")
+        for requirement in module.REQUIRES:
+            add(requirement)
+        features.append(module)
+
+    for fid in ids:
+        add(fid)
+    return features
+
+
+def build(profile_name, release, dev, update_manifest=False, dry_run=False):
+    profile = load(profile_name, "profiles")
+    version = encode_version(release, dev)
+
+    if dev and profile.CHANNEL == "stable":
+        raise SystemExit("a stable profile cannot carry a dev version")
+
+    features = resolve(profile.FEATURES)
+    for feature in features:
+        if feature.CHANNEL == "dev" and profile.CHANNEL == "stable":
+            raise SystemExit("stable profile may not include dev feature %s" % feature.ID)
 
     base = open(BASE_CODE, "rb").read()
     if sha256(base) != M.BASE_SHA256:
@@ -124,28 +172,39 @@ def build(name, dry_run=False, update_manifest=False):
 
     base_body = base[:-2]
     body = bytearray(base_body)
-    spec.apply(body)
-    img = seal(body)
+    ctx = Context(body, version)
 
-    errors = gate(img, base_body, spec)
+    for feature in features:
+        feature.apply(ctx)
+
+    struct.pack_into("<I", body, OFF_VERSION, version)
+
+    bitmap = 0
+    for feature in features:
+        bitmap |= 1 << feature.BIT
+
+    info = struct.pack("<III", CFW_INFO_MAGIC, version, bitmap)
+    info += struct.pack("<HH", crc16(info), 0xFFFF)
+    ctx.place(CFW_INFO_ADDR, info)
+
+    img = seal(body)
+    errors = gate(img, base_body, features, version)
     if errors:
         print("gate failed:")
-        for e in errors:
-            print("  " + e)
+        for error in errors:
+            print("  " + error)
         return 1
 
     changes = diff_ranges(base_body, img[:-2])
     changed = sum(hi - lo for lo, hi in changes)
-    build_id = format_version(spec.VERSION)
+    build_id = format_version(version)
 
-    print("spec      %s" % name)
-    print("channel   %s" % spec.CHANNEL)
-    print("version   %s (0x%08X)" % (build_id, spec.VERSION))
+    print("profile   %s (%s)" % (profile.NAME, profile.CHANNEL))
+    print("version   %s (0x%08X)" % (build_id, version))
+    print("features  %s" % (", ".join("%s@%d" % (f.ID, f.VERSION) for f in features) or "none"))
     print("image     %d bytes (0x%X)" % (len(img), len(img)))
     print("sha256    %s" % sha256(img))
     print("changed   %d bytes in %d ranges" % (changed, len(changes)))
-    for lo, hi in changes:
-        print("          0x%06X..0x%06X" % (lo, hi))
 
     if dry_run:
         print("dry run, nothing written")
@@ -160,9 +219,11 @@ def build(name, dry_run=False, update_manifest=False):
         manifest = json.load(open(MANIFEST))
         entry = {
             "id": build_id,
-            "channel": spec.CHANNEL,
-            "version": spec.VERSION,
-            "spec": name,
+            "channel": profile.CHANNEL,
+            "version": version,
+            "profile": profile.NAME,
+            "features": ["%s@%d" % (f.ID, f.VERSION) for f in features],
+            "base_sha256": M.BASE_SHA256,
             "image_sha256": sha256(img),
             "image_len": len(img),
             "changed_bytes": changed,
@@ -178,11 +239,13 @@ def build(name, dry_run=False, update_manifest=False):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--spec", required=True)
+    ap.add_argument("--profile", required=True)
+    ap.add_argument("--release", type=int, required=True)
+    ap.add_argument("--dev", type=int, default=0)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--update-manifest", action="store_true")
     args = ap.parse_args()
-    return build(args.spec, args.dry_run, args.update_manifest)
+    return build(args.profile, args.release, args.dev, args.update_manifest, args.dry_run)
 
 
 if __name__ == "__main__":

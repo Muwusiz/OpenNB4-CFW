@@ -65,39 +65,60 @@ def check_text(path):
     return errors
 
 
-def check_nor_policy():
+def module_values(path):
+    tree = ast.parse(open(path, encoding="utf-8").read())
+    values = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+            if isinstance(target, ast.Name):
+                try:
+                    values[target.id] = ast.literal_eval(node.value)
+                except Exception:
+                    pass
+    return values, tree
+
+
+def check_policy():
     errors = []
-    specs = os.path.join(ROOT, "firmware", "specs")
-    if not os.path.isdir(specs):
-        return errors
-    for name in sorted(os.listdir(specs)):
-        if not name.endswith(".py") or name == "__init__.py":
-            continue
-        path = os.path.join(specs, name)
-        tree = ast.parse(open(path, encoding="utf-8").read())
-        channel = None
-        arbitrary = False
-        for node in tree.body:
-            if isinstance(node, ast.Assign) and len(node.targets) == 1:
-                target = node.targets[0]
-                if not isinstance(target, ast.Name):
+    features_dir = os.path.join(ROOT, "firmware", "features")
+    profiles_dir = os.path.join(ROOT, "firmware", "profiles")
+    channels = {}
+
+    if os.path.isdir(features_dir):
+        for name in sorted(os.listdir(features_dir)):
+            if not name.endswith(".py") or name == "__init__.py":
+                continue
+            path = os.path.join(features_dir, name)
+            values, tree = module_values(path)
+            channel = values.get("CHANNEL")
+            if channel not in CHANNELS:
+                errors.append("%s: CHANNEL must be one of %s" % (name, ", ".join(CHANNELS)))
+            channels[name[:-3]] = channel
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
                     continue
-                if target.id == "CHANNEL":
-                    channel = getattr(node.value, "value", None)
-                elif target.id == "ARBITRARY_CALL":
-                    arbitrary = bool(getattr(node.value, "value", False))
-        if channel not in CHANNELS:
-            errors.append("%s: CHANNEL must be one of %s" % (name, ", ".join(CHANNELS)))
-        if arbitrary and channel == "stable":
-            errors.append("%s: a stable spec may not allow arbitrary calls" % name)
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
+                if not isinstance(node.func, ast.Name) or node.func.id != "BLOCK_REQUEST":
+                    continue
+                first = node.args[0] if node.args else None
+                if not isinstance(first, ast.Constant) or first.value != 0:
+                    errors.append("%s: BLOCK_REQUEST must be called with channel 0" % name)
+
+    if os.path.isdir(profiles_dir):
+        for name in sorted(os.listdir(profiles_dir)):
+            if not name.endswith(".py") or name == "__init__.py":
                 continue
-            if not isinstance(node.func, ast.Name) or node.func.id != "BLOCK_REQUEST":
-                continue
-            first = node.args[0] if node.args else None
-            if not isinstance(first, ast.Constant) or first.value != 0:
-                errors.append("%s: BLOCK_REQUEST must be called with channel 0" % name)
+            path = os.path.join(profiles_dir, name)
+            values, _ = module_values(path)
+            channel = values.get("CHANNEL")
+            if channel not in CHANNELS:
+                errors.append("%s: CHANNEL must be one of %s" % (name, ", ".join(CHANNELS)))
+            if channel == "stable":
+                for feature in values.get("FEATURES", []):
+                    if channels.get(feature) == "dev":
+                        errors.append("%s: stable profile includes dev feature %s"
+                                      % (name, feature))
+
     return errors
 
 
@@ -108,7 +129,7 @@ def main():
     for path in [os.path.join(ROOT, "README.md")] + list(walk(os.path.join(ROOT, "docs"), ".md")):
         if os.path.exists(path):
             errors += check_text(path)
-    errors += check_nor_policy()
+    errors += check_policy()
 
     if errors:
         for e in errors:

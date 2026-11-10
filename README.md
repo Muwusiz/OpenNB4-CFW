@@ -17,6 +17,6 @@ Coming with the first release. Uninstalling will restore the vendor firmware.
 
     git clone https://github.com/Muwusiz/OpenNB4-CFW.git
     cd OpenNB4-CFW
-    python firmware/build.py --spec null
+    python firmware/build.py --profile stable --release 1
 
 The image is written to `dist/`. Requires Python 3.
