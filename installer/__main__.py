@@ -4,7 +4,8 @@ import os
 import struct
 import sys
 
-from .device import APP_BASE, Device, DeviceError
+from .device import (APP_BASE, Device, DeviceError, NOR_CHUNK, NOR_CONTAINER,
+                     NOR_HEADER, NOR_SIZE)
 
 DEFAULT_BACKUP = 0x180000
 BASE_IMAGE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -114,6 +115,38 @@ def cmd_models_restore(args):
     return 0
 
 
+def nor_progress(done, total):
+    if done % 0x40000 < NOR_CHUNK:
+        print("  %d/%d bytes" % (done, total))
+
+
+def cmd_nor_backup(args):
+    length = min(args.length, NOR_SIZE)
+    with Device() as device:
+        try:
+            ready = device.bootloader()
+        except DeviceError:
+            ready = False
+        if not ready:
+            raise DeviceError("enter update mode: Settings -> Firmware Update")
+        try:
+            device.nor_chunk(0, 0x100)
+        except DeviceError:
+            raise DeviceError("NOR read is not responding; power-cycle the radio, "
+                              "then enter update mode from the menu")
+        data = device.nor_backup(length, nor_progress)
+    header = data[NOR_CONTAINER:NOR_CONTAINER + 4]
+    ok = len(data) < NOR_CONTAINER + 4 or header == NOR_HEADER
+    open(args.out, "wb").write(data)
+    print("read      %d bytes" % len(data))
+    print("sha256    %s" % hashlib.sha256(data).hexdigest())
+    if len(data) >= NOR_CONTAINER + 4:
+        label = "ok" if header == NOR_HEADER else "unexpected " + header.hex()
+        print("container %s" % label)
+    print("wrote     %s" % args.out)
+    return 0 if ok else 1
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="installer")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -125,6 +158,11 @@ def main(argv=None):
     backup.add_argument("--out", required=True)
     backup.add_argument("--length", type=lambda s: int(s, 0), default=DEFAULT_BACKUP)
     backup.set_defaults(func=cmd_backup)
+
+    nor = sub.add_parser("nor-backup")
+    nor.add_argument("--out", required=True)
+    nor.add_argument("--length", type=lambda s: int(s, 0), default=NOR_SIZE)
+    nor.set_defaults(func=cmd_nor_backup)
 
     install = sub.add_parser("install")
     install.add_argument("--image", required=True)

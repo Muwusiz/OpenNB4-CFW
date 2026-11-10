@@ -145,6 +145,9 @@ def resolve(ids):
             return
         seen.add(fid)
         module = load(fid, "features")
+        if getattr(module, "DEPRECATED", False):
+            raise SystemExit("feature %s is deprecated: %s"
+                             % (module.ID, getattr(module, "REASON", "")))
         for requirement in module.REQUIRES:
             add(requirement)
         features.append(module)

@@ -1,5 +1,6 @@
 import struct
 import time
+import zlib
 
 import hid
 
@@ -10,6 +11,11 @@ REPORT = 280
 PAYLOAD = 24
 DRAIN_TIMEOUT = 20
 DRAIN_LIMIT = 20000
+NOR_SIZE = 0x800000
+NOR_CHUNK = 0x400
+NOR_STACK = 0x20000EA4
+NOR_CONTAINER = 0x80000
+NOR_HEADER = b"\x5a\x5a\xbc\x3a"
 
 OP_QUERY = 1
 OP_READ = 2
@@ -91,13 +97,18 @@ class Device:
             frame[PAYLOAD:PAYLOAD + len(data)] = data
             self.handle.write(b"\x00" + bytes(frame))
             time.sleep(0.002)
-            try:
-                reply = bytes(self.handle.read(REPORT + 1, timeout))
-            except OSError:
-                self.reopen()
-                continue
-            if len(reply) >= PAYLOAD and struct.unpack_from("<I", reply, 0)[0] == sequence:
-                return reply
+            deadline = time.monotonic() + timeout / 1000.0
+            while True:
+                left = max(1, int((deadline - time.monotonic()) * 1000))
+                try:
+                    reply = bytes(self.handle.read(REPORT + 1, left))
+                except OSError:
+                    self.reopen()
+                    break
+                if not reply:
+                    break
+                if struct.unpack_from("<I", reply, 0)[0] == sequence:
+                    return reply
         raise DeviceError("device did not answer")
 
     def send(self, opcode, address=0, length=0, mode=0, data=b""):
@@ -128,6 +139,37 @@ class Device:
             out += reply[PAYLOAD:PAYLOAD + n]
             address += n
             length -= n
+        return bytes(out)
+
+    def bootloader(self):
+        info = self.info()
+        return info[:8] == b"\x02\x00\x01\x00\x00\x8d\x00\x00"
+
+    def nor_chunk(self, address, length):
+        reply = self.transfer(OP_CRC, address, length)
+        expected = struct.unpack_from("<I", reply, 0x10)[0]
+        out = bytearray()
+        for offset in range(0, length, CHUNK):
+            n = min(CHUNK, length - offset)
+            reply = self.transfer(OP_READ, (NOR_STACK + offset - APP_BASE) & 0xFFFFFFFF, n)
+            out += reply[PAYLOAD:PAYLOAD + n]
+        if zlib.crc32(out) & 0xFFFFFFFF != expected:
+            raise DeviceError("NOR chunk CRC mismatch at 0x%X" % address)
+        return bytes(out)
+
+    def nor_backup(self, length=NOR_SIZE, progress=None):
+        out = bytearray()
+        while len(out) < length:
+            n = min(NOR_CHUNK, length - len(out))
+            for attempt in range(3):
+                try:
+                    out += self.nor_chunk(len(out), n)
+                    break
+                except DeviceError:
+                    if attempt == 2:
+                        raise
+            if progress:
+                progress(len(out), length)
         return bytes(out)
 
     def write(self, address, data, mode=1):
